@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Tamizhan_Skiils_Project1_Student_Task_Manager_App" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
