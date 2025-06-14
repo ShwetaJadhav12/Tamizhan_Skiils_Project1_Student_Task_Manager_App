@@ -1,15 +1,18 @@
 package com.example.tamizhan_skiils_project1_student_task_manager_app.screen
 
+import android.annotation.SuppressLint
+import android.app.AlarmManager
 import android.app.DatePickerDialog
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,8 +26,6 @@ import com.example.tamizhan_skiils_project1_student_task_manager_app.Data.getPri
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
-
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,10 +116,16 @@ fun TaskListScreen(navController: NavHostController) {
                 when (currentScreen) {
                     "tasks", "completed" -> LazyColumn {
                         items(filteredTasks) { task ->
-                            TaskCard(task) {
-                                editingTask = task
-                                showDialog = true
-                            }
+                            TaskCard(
+                                task = task,
+                                onEdit = {
+                                    editingTask = task
+                                    showDialog = true
+                                },
+                                onDelete = {
+                                    taskList.remove(task)
+                                }
+                            )
                         }
                     }
                     "profile" -> {
@@ -151,68 +158,90 @@ fun TaskListScreen(navController: NavHostController) {
     }
 }
 
-
-// val c2 = Color(0xFFB65B7C)
-//    val c3 = Color(0xFF5F96C5)
-
 @Composable
-fun TaskCard(task: Task, onClick: () -> Unit) {
-    val c2 = Color(0xFFB65B7C)
-    val c3 = Color(0xFF5F96C5)
-    val cardColor = if (task.category == "Personal") c2 else c3
+fun TaskCard(task: Task, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val cardColor = when (task.priority) {
+        "High" -> Color(0xFFFFCDD2) // Light red
+        "Medium" -> Color(0xFFFFE0B2) // Light orange
+        else -> Color(0xFFFFF9C4) // Light yellow
+    }
+
+    val priorityColor = when (task.priority) {
+        "High" -> Color(0xFFD32F2F)
+        "Medium" -> Color(0xFFF57C00)
+        else -> Color(0xFFFBC02D)
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
-            .clickable { onClick() },
+            .padding(8.dp),
         colors = CardDefaults.cardColors(
             containerColor = cardColor
         ),
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = task.title,
-                style = MaterialTheme.typography.titleMedium
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                Text(
+                    text = task.category,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color(0xFF212121)
+                )
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFF212121)
+                )
+                Row {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF212121))
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = task.description,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF212121)
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Due: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(task.dueDate))}",
                 style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray
+                color = Color.DarkGray
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Priority: ${task.priority}",
                 style = MaterialTheme.typography.labelMedium,
-                color = when (task.priority) {
-                    "High" -> Color.Red
-                    "Medium" -> Color(0xFFFFA500) // Orange
-                    else -> Color.Black
-                }
+                color = priorityColor
             )
         }
     }
 }
-
 @Composable
 fun AddTaskDialog(
+    task: Task?,
     onAdd: (Task) -> Unit,
-    onDismiss: () -> Unit,
-    task: Task? = null
+    onDismiss: () -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var priority by remember { mutableStateOf("Medium") }
-    var category by remember { mutableStateOf("Academic") }
-    var dueDate by remember { mutableStateOf(System.currentTimeMillis()) }
-    var isDone by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    var title by remember { mutableStateOf(task?.title ?: "") }
+    var description by remember { mutableStateOf(task?.description ?: "") }
+    var priority by remember { mutableStateOf(task?.priority ?: "Medium") }
+    var category by remember { mutableStateOf(task?.category ?: "Academic") }
+    var isDone by remember { mutableStateOf(task?.isDone ?: false) }
+    var dueDate by remember { mutableStateOf(task?.dueDate ?: System.currentTimeMillis()) }
 
     val priorities = listOf("High", "Medium", "Low")
     val categories = listOf("Academic", "Personal", "Other")
@@ -220,11 +249,11 @@ fun AddTaskDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            Button(onClick = {
-                if (title.isNotBlank() && description.isNotBlank()) {
-                    onAdd(
-                        Task(
-                            id = UUID.randomUUID().toString(),
+            Button(
+                onClick = {
+                    if (title.isNotBlank() && description.isNotBlank()) {
+                        val newTask = Task(
+                            id = task?.id ?: UUID.randomUUID().toString(),
                             title = title,
                             description = description,
                             priority = priority,
@@ -232,88 +261,139 @@ fun AddTaskDialog(
                             dueDate = dueDate,
                             isDone = isDone
                         )
-                    )
-                }
-            }) { Text("Add") }
+                        onAdd(newTask)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2), contentColor = Color.White)
+            ) {
+                Text("Save")
+            }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+            OutlinedButton(onClick = onDismiss, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1976D2))) {
+                Text("Cancel")
+            }
         },
-        title = { Text("Add New Task") },
+        title = {
+            Text(
+                text = if (task == null) "Add New Task" else "Edit Task",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color(0xFF1976D2)
+            )
+        },
         text = {
-            Column {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Title") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF1976D2),
+                        focusedLabelColor = Color(0xFF1976D2)
+                    )
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("Description") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF1976D2),
+                        focusedLabelColor = Color(0xFF1976D2)
+                    )
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
                 DropdownSelector("Priority", priorities, priority) { priority = it }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 DropdownSelector("Category", categories, category) { category = it }
-                Spacer(modifier = Modifier.height(8.dp))
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isDone, onCheckedChange = { isDone = it })
                     Text("Completed")
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 DateSelector(dueDate) { dueDate = it }
             }
-        }
+        },
+        containerColor = Color.White
     )
 }
 
+
 @Composable
-fun DropdownSelector(label: String, options: List<String>, selected: String, onSelected: (String) -> Unit) {
+fun DropdownSelector(label: String, options: List<String>, selectedOption: String, onOptionSelected: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
-    Column {
-        Text(text = label, style = MaterialTheme.typography.labelMedium)
-        Box {
-            Button(onClick = { expanded = true }) {
-                Text(selected)
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option) },
-                        onClick = {
-                            onSelected(option)
-                            expanded = false
-                        }
-                    )
+    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        OutlinedTextField(
+            value = selectedOption,
+            onValueChange = {},
+            label = { Text(label) },
+            readOnly = true,
+            trailingIcon = {
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null)
                 }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF1976D2),
+                focusedLabelColor = Color(0xFF1976D2)
+            )
+        )
+
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(text = { Text(option) }, onClick = {
+                    onOptionSelected(option)
+                    expanded = false
+                })
             }
         }
     }
 }
 
 @Composable
-fun DateSelector(currentDate: Long, onDateSelected: (Long) -> Unit) {
+fun DateSelector(selectedDate: Long, onDateSelected: (Long) -> Unit) {
     val context = LocalContext.current
-    val calendar = remember { Calendar.getInstance().apply { timeInMillis = currentDate } }
+    val calendar = Calendar.getInstance().apply { timeInMillis = selectedDate }
 
-    Button(onClick = {
-        DatePickerDialog(
-            context,
-            { _, year, month, day ->
-                calendar.set(year, month, day)
-                onDateSelected(calendar.timeInMillis)
-            },
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)
-        ).show()
-    }) {
-        Text("Pick Due Date")
+    val dateString = remember(selectedDate) {
+        SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(selectedDate))
     }
+
+    OutlinedTextField(
+        value = dateString,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text("Due Date") },
+        modifier = Modifier.fillMaxWidth().clickable {
+            DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    calendar.set(Calendar.YEAR, year)
+                    calendar.set(Calendar.MONTH, month)
+                    calendar.set(Calendar.DAY_OF_MONTH, dayOfMonth)
+                    onDateSelected(calendar.timeInMillis)
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+            ).show()
+        },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Color(0xFF1976D2),
+            focusedLabelColor = Color(0xFF1976D2)
+        )
+    )
 }

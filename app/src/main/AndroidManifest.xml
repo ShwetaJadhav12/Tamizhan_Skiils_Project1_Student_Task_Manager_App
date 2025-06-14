@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.example.tamizhan_skiils_project1_student_task_manager_app">
+
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        tools:ignore="ProtectedPermissions" />
 
     <application
         android:allowBackup="true"
@@ -12,6 +16,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Tamizhan_Skiils_Project1_Student_Task_Manager_App"
         tools:targetApi="31">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -19,10 +24,13 @@
             android:theme="@style/Theme.Tamizhan_Skiils_Project1_Student_Task_Manager_App">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- ✅ Add your BroadcastReceiver here -->
+        <receiver android:name=".ReminderReceiver" />
+
     </application>
 
 </manifest>
