@@ -4,13 +4,17 @@ import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.app.DatePickerDialog
 import android.app.PendingIntent
+import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -228,6 +232,7 @@ fun TaskCard(task: Task, onEdit: () -> Unit, onDelete: () -> Unit) {
         }
     }
 }
+
 @Composable
 fun AddTaskDialog(
     task: Task?,
@@ -254,23 +259,32 @@ fun AddTaskDialog(
                     if (title.isNotBlank() && description.isNotBlank()) {
                         val newTask = Task(
                             id = task?.id ?: UUID.randomUUID().toString(),
-                            title = title,
-                            description = description,
+                            title = title.trim(),
+                            description = description.trim(),
                             priority = priority,
                             category = category,
                             dueDate = dueDate,
                             isDone = isDone
                         )
                         onAdd(newTask)
+                        onDismiss()
+                    } else {
+                        Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2), contentColor = Color.White)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF1976D2),
+                    contentColor = Color.White
+                )
             ) {
                 Text("Save")
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = onDismiss, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1976D2))) {
+            OutlinedButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1976D2))
+            ) {
                 Text("Cancel")
             }
         },
@@ -282,7 +296,11 @@ fun AddTaskDialog(
             )
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -310,7 +328,9 @@ fun AddTaskDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 DropdownSelector("Priority", priorities, priority) { priority = it }
+
                 Spacer(modifier = Modifier.height(12.dp))
+
                 DropdownSelector("Category", categories, category) { category = it }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -321,20 +341,34 @@ fun AddTaskDialog(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
+                DatePickerWithButton(
+                    selectedDate = dueDate,
+                    onDatePicked = { dueDate = it }
+                )
 
-                DateSelector(dueDate) { dueDate = it }
+                Spacer(modifier = Modifier.height(12.dp))
+
+
+
             }
         },
         containerColor = Color.White
     )
 }
 
-
 @Composable
-fun DropdownSelector(label: String, options: List<String>, selectedOption: String, onOptionSelected: (String) -> Unit) {
+fun DropdownSelector(
+    label: String,
+    options: List<String>,
+    selectedOption: String,
+    onOptionSelected: (String) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 4.dp)
+    ) {
         OutlinedTextField(
             value = selectedOption,
             onValueChange = {},
@@ -342,7 +376,7 @@ fun DropdownSelector(label: String, options: List<String>, selectedOption: Strin
             readOnly = true,
             trailingIcon = {
                 IconButton(onClick = { expanded = !expanded }) {
-                    Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = null)
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -352,48 +386,75 @@ fun DropdownSelector(label: String, options: List<String>, selectedOption: Strin
             )
         )
 
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
             options.forEach { option ->
-                DropdownMenuItem(text = { Text(option) }, onClick = {
-                    onOptionSelected(option)
-                    expanded = false
-                })
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    }
+                )
             }
         }
     }
 }
 
-@Composable
-fun DateSelector(selectedDate: Long, onDateSelected: (Long) -> Unit) {
-    val context = LocalContext.current
-    val calendar = Calendar.getInstance().apply { timeInMillis = selectedDate }
 
-    val dateString = remember(selectedDate) {
-        SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(selectedDate))
+@Composable
+fun DatePickerWithButton(
+    selectedDate: Long,
+    onDatePicked: (Long) -> Unit
+) {
+    val context = LocalContext.current
+    var internalDate by remember { mutableStateOf(selectedDate) }
+
+    val formatted = remember(internalDate) {
+        SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(internalDate))
     }
 
-    OutlinedTextField(
-        value = dateString,
-        onValueChange = {},
-        readOnly = true,
-        label = { Text("Due Date") },
-        modifier = Modifier.fillMaxWidth().clickable {
-            DatePickerDialog(
-                context,
-                { _, year, month, dayOfMonth ->
-                    calendar.set(Calendar.YEAR, year)
-                    calendar.set(Calendar.MONTH, month)
-                    calendar.set(Calendar.DAY_OF_MONTH, dayOfMonth)
-                    onDateSelected(calendar.timeInMillis)
-                },
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH),
-                calendar.get(Calendar.DAY_OF_MONTH)
-            ).show()
-        },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Color(0xFF1976D2),
-            focusedLabelColor = Color(0xFF1976D2)
-        )
-    )
+    Button(onClick = {
+        val calendar = Calendar.getInstance().apply { timeInMillis = internalDate }
+
+        // Step 1: Pick date
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                // After date is selected, now pick time
+                val pickedCalendar = Calendar.getInstance()
+                pickedCalendar.set(Calendar.YEAR, year)
+                pickedCalendar.set(Calendar.MONTH, month)
+                pickedCalendar.set(Calendar.DAY_OF_MONTH, day)
+
+                // Step 2: Time picker
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        pickedCalendar.set(Calendar.HOUR_OF_DAY, hour)
+                        pickedCalendar.set(Calendar.MINUTE, minute)
+                        pickedCalendar.set(Calendar.SECOND, 0)
+                        pickedCalendar.set(Calendar.MILLISECOND, 0)
+
+                        internalDate = pickedCalendar.timeInMillis
+                        onDatePicked(internalDate)
+                    },
+                    calendar.get(Calendar.HOUR_OF_DAY),
+                    calendar.get(Calendar.MINUTE),
+                    false
+                ).show()
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        ).show()
+    }) {
+        Text("Pick Date & Time")
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+    Text("Reminder set for: $formatted", style = MaterialTheme.typography.bodyLarge)
 }
+

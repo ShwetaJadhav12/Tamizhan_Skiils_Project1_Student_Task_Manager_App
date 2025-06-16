@@ -1,42 +1,25 @@
-package com.example.tamizhan_skiils_project1_student_task_manager_app.screen
-
 import android.app.DatePickerDialog
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import android.widget.Toast
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import androidx.navigation.NavHostController
-import com.google.android.material.datepicker.DateSelector
-import java.util.Calendar
+import com.example.tamizhan_skiils_project1_student_task_manager_app.reminder.scheduleTaskReminder
+import com.example.tamizhan_skiils_project1_student_task_manager_app.screen.DatePickerWithButton
+import com.example.tamizhan_skiils_project1_student_task_manager_app.screen.DropdownSelector
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditTaskScreen(navController: NavController) {
+    val context = LocalContext.current
     val c1 = Color(0xFFB65B7C)
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -53,13 +36,21 @@ fun AddEditTaskScreen(navController: NavController) {
         },
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                // Save task - backend later
-                navController.popBackStack()
+                if (title.isNotBlank() && description.isNotBlank()) {
+                    scheduleTaskReminder(
+                        context = context,
+                        taskTitle = title,
+                        taskDescription = description,
+                        timeInMillis = dueDate
+                    )
+                    navController.popBackStack()
+                } else {
+                    Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                }
             }) {
                 Icon(Icons.Default.Check, contentDescription = null)
             }
         },
-
         containerColor = c1
     ) { padding ->
         Column(modifier = Modifier
@@ -87,7 +78,10 @@ fun AddEditTaskScreen(navController: NavController) {
             DropdownSelector("Category", categories, category) { category = it }
 
             Spacer(modifier = Modifier.height(12.dp))
-            DateSelector(dueDate) { dueDate = it }
+            DatePickerWithButton(
+                selectedDate = dueDate,
+                onDatePicked = { dueDate = it }
+            )
         }
     }
 }
