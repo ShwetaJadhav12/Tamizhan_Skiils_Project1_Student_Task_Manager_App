@@ -21,24 +21,13 @@ import com.example.tamizhan_skiils_project1_student_task_manager_app.ui.theme.Ta
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
-                100
-            )
-        }
         setContent {
             Tamizhan_Skiils_Project1_Student_Task_Manager_AppTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Navigation(
-                        navController = rememberNavController(),
-
-                    )
-                }
+                Navigation()
             }
         }
     }
 }
+
+
 
