@@ -3,10 +3,15 @@ package com.example.tamizhan_skiils_project1_student_task_manager_app.screen
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,22 +21,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.example.tamizhan_skiils_project1_student_task_manager_app.Data.Task
 import com.example.tamizhan_skiils_project1_student_task_manager_app.Data.getPriorityValue
+import com.example.tamizhan_skiils_project1_student_task_manager_app.database.TaskViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskListScreen(navController: NavHostController) {
-    val taskList = remember { mutableStateListOf<Task>() }
+fun TaskListScreen(
+    navController: NavController,
+    viewModel: TaskViewModel,
+    taskId: Int? = null
+) {
+    val taskList by viewModel.allTasks.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<Task?>(null) }
     var currentScreen by remember { mutableStateOf("tasks") }
-    var drawerState = rememberDrawerState(DrawerValue.Closed)
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var selectedCategory by remember { mutableStateOf<String?>(null) }
 
@@ -66,12 +79,15 @@ fun TaskListScreen(navController: NavHostController) {
                 )
             },
             floatingActionButton = {
-                FloatingActionButton(onClick = {
-                    editingTask = null
-                    showDialog = true
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Task")
-                }
+
+                    FloatingActionButton(onClick = {
+                        showDialog = true     // ✅ Opens the AddTaskDialog
+                        editingTask = null    // ✅ Ensures it is in Add Mode
+                    }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add Task")
+                    }
+
+
             },
             bottomBar = {
                 NavigationBar {
@@ -81,6 +97,7 @@ fun TaskListScreen(navController: NavHostController) {
                         selected = currentScreen == "tasks",
                         onClick = { currentScreen = "tasks" }
                     )
+
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
                         label = { Text("Completed") },
@@ -93,6 +110,8 @@ fun TaskListScreen(navController: NavHostController) {
                         selected = currentScreen == "profile",
                         onClick = { currentScreen = "profile" }
                     )
+
+
                 }
             }
         ) { paddingValues ->
@@ -101,14 +120,19 @@ fun TaskListScreen(navController: NavHostController) {
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                val filteredTasks = taskList.filter {
-                    (selectedCategory == null || it.category == selectedCategory) &&
-                            when (currentScreen) {
-                                "tasks" -> !it.isDone
-                                "completed" -> it.isDone
-                                else -> true
-                            }
-                }
+                val priorityOrder = mapOf("High" to 1, "Medium" to 2, "Low" to 3)
+
+                val filteredTasks = taskList
+                    .filter {
+                        (selectedCategory == null || it.category == selectedCategory) &&
+                                when (currentScreen) {
+                                    "tasks" -> !it.isDone
+                                    "completed" -> it.isDone
+                                    else -> true
+                                }
+                    }
+                    .sortedBy { priorityOrder[it.priority] ?: 4 }
+
 
                 when (currentScreen) {
                     "tasks", "completed" -> LazyColumn {
@@ -120,13 +144,14 @@ fun TaskListScreen(navController: NavHostController) {
                                     showDialog = true
                                 },
                                 onDelete = {
-                                    taskList.remove(task)
+                                    viewModel.deleteTask(task)
                                 }
                             )
                         }
                     }
+
                     "profile" -> {
-                        Text("\uD83D\uDC64 Profile Coming Soon...", modifier = Modifier.padding(16.dp))
+                        Text("👤 Profile Coming Soon...", modifier = Modifier.padding(16.dp))
                     }
                 }
             }
@@ -136,12 +161,10 @@ fun TaskListScreen(navController: NavHostController) {
                     task = editingTask,
                     onAdd = { newTask ->
                         if (editingTask != null) {
-                            val index = taskList.indexOfFirst { it.id == newTask.id }
-                            if (index != -1) taskList[index] = newTask
+                            viewModel.updateTask(newTask)
                         } else {
-                            taskList.add(newTask)
+                            viewModel.addTask(newTask)
                         }
-                        taskList.sortWith(compareBy { getPriorityValue(it.priority) })
                         showDialog = false
                         editingTask = null
                     },
@@ -157,70 +180,85 @@ fun TaskListScreen(navController: NavHostController) {
 
 @Composable
 fun TaskCard(task: Task, onEdit: () -> Unit, onDelete: () -> Unit) {
-    val cardColor = when (task.priority) {
-        "High" -> Color(0xFFFFCDD2) // Light red
-        "Medium" -> Color(0xFFFFE0B2) // Light orange
-        else -> Color(0xFFFFF9C4) // Light yellow
+    val (cardColor, contentColor, categoryColor) = if (task.isDone) {
+        Triple(Color(0xFFC8E6C9), Color(0xFF1B5E20), Color(0xFF2E7D32)) // Completed: green
+    } else {
+        when (task.priority) {
+            "High" -> Triple(Color(0xFFFFCDD2), Color(0xFFB71C1C), Color(0xFFC62828))
+            "Medium" -> Triple(Color(0xFFFFE0B2), Color(0xFFE65100), Color(0xFFEF6C00))
+            else -> Triple(Color(0xFFFFF9C4), Color(0xFF827717), Color(0xFF9E9D24))
+        }
     }
 
-    val priorityColor = when (task.priority) {
-        "High" -> Color(0xFFD32F2F)
-        "Medium" -> Color(0xFFF57C00)
-        else -> Color(0xFFFBC02D)
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = cardColor
-        ),
-        elevation = CardDefaults.cardElevation(4.dp)
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .padding(8.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-
-                Text(
-                    text = task.category,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Color(0xFF212121)
-                )
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFF212121)
-                )
-                Row {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF212121))
-                    }
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+        // Task Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(4.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = task.category.uppercase(),
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = categoryColor
+                        )
+                    )
+                    Row {
+                        IconButton(onClick = onEdit) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit", tint = contentColor)
+                        }
+                        IconButton(onClick = onDelete) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
+                        }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = contentColor
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = task.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = contentColor
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Due: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(task.dueDate))}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = contentColor.copy(alpha = 0.8f)
+                )
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = task.description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF212121)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Due: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(task.dueDate))}",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.DarkGray
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Priority: ${task.priority}",
-                style = MaterialTheme.typography.labelMedium,
-                color = priorityColor
+        }
+
+        // Tick mark if task is completed
+        if (task.isDone) {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = "Completed",
+                tint = Color(0xFF2E7D32),
+                modifier = Modifier
+                    .size(25.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 10.dp, y = (-10).dp)
             )
         }
     }
@@ -228,126 +266,152 @@ fun TaskCard(task: Task, onEdit: () -> Unit, onDelete: () -> Unit) {
 
 @Composable
 fun AddTaskDialog(
-    task: Task?,
+    task: Task? = null,
     onAdd: (Task) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
-
     var title by remember { mutableStateOf(task?.title ?: "") }
     var description by remember { mutableStateOf(task?.description ?: "") }
     var priority by remember { mutableStateOf(task?.priority ?: "Medium") }
     var category by remember { mutableStateOf(task?.category ?: "Academic") }
-    var isDone by remember { mutableStateOf(task?.isDone ?: false) }
     var dueDate by remember { mutableStateOf(task?.dueDate ?: System.currentTimeMillis()) }
+    var isDone by remember { mutableStateOf(task?.isDone ?: false) }
 
     val priorities = listOf("High", "Medium", "Low")
     val categories = listOf("Academic", "Personal", "Other")
+
+    val dialogColor = MaterialTheme.colorScheme.surfaceVariant
+    val titleColor = MaterialTheme.colorScheme.primary
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(
                 onClick = {
-                    if (title.isNotBlank() && description.isNotBlank()) {
-                        val newTask = Task(
-                            id = task?.id ?: UUID.randomUUID().toString(),
-                            title = title.trim(),
-                            description = description.trim(),
-                            priority = priority,
-                            category = category,
-                            dueDate = dueDate,
-                            isDone = isDone
-                        )
-                        onAdd(newTask)
-                        onDismiss()
-                    } else {
-                        Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1976D2),
-                    contentColor = Color.White
-                )
+
+                        if (title.isNotBlank() && description.isNotBlank()) {
+                            val newTask = if (task != null) {
+                                // Edit mode – keep existing ID
+                                task.copy(
+                                    title = title,
+                                    description = description,
+                                    priority = priority,
+                                    category = category,
+                                    dueDate = dueDate,
+                                    isDone = isDone
+                                )
+                            } else {
+                                // Add mode – let Room auto-generate ID
+                                Task(
+                                    title = title,
+                                    description = description,
+                                    priority = priority,
+                                    category = category,
+                                    dueDate = dueDate,
+                                    isDone = isDone
+                                )
+                            }
+
+                            onAdd(newTask)
+                        }
+
+
+                }
             ) {
-                Text("Save")
+                Text("Save Task")
             }
         },
         dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF1976D2))
-            ) {
+            TextButton(onClick = onDismiss) {
                 Text("Cancel")
             }
         },
         title = {
             Text(
-                text = if (task == null) "Add New Task" else "Edit Task",
-                style = MaterialTheme.typography.headlineSmall,
-                color = Color(0xFF1976D2)
+                text = if (task != null) "Edit Task" else "New Task",
+                color = titleColor,
+                style = MaterialTheme.typography.titleLarge
             )
         },
         text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-            ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Title") },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF1976D2),
-                        focusedLabelColor = Color(0xFF1976D2)
-                    )
+                    singleLine = true
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("Description") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF1976D2),
-                        focusedLabelColor = Color(0xFF1976D2)
-                    )
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
+                Divider(color = Color.LightGray, thickness = 1.dp)
 
-                DropdownSelector("Priority", priorities, priority) { priority = it }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                DropdownSelector("Category", categories, category) { category = it }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = isDone, onCheckedChange = { isDone = it })
-                    Text("Completed")
+                Spacer(Modifier.height(12.dp))
+                Text("Priority", color = labelColor)
+                priorities.forEach {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    ) {
+                        RadioButton(
+                            selected = priority == it,
+                            onClick = { priority = it }
+                        )
+                        Text(it, modifier = Modifier.padding(start = 8.dp))
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
+                Text("Category", color = labelColor)
+                categories.forEach {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 8.dp, top = 4.dp)
+                    ) {
+                        RadioButton(
+                            selected = category == it,
+                            onClick = { category = it }
+                        )
+                        Text(it, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
                 DatePickerWithButton(
                     selectedDate = dueDate,
                     onDatePicked = { dueDate = it }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-
-
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    Checkbox(
+                        checked = isDone,
+                        onCheckedChange = { isDone = it }
+                    )
+                    Text("Mark as Completed", modifier = Modifier.padding(start = 8.dp))
+                }
             }
         },
-        containerColor = Color.White
+        containerColor = dialogColor,
+        shape = RoundedCornerShape(20.dp)
     )
 }
+
+
 
 @Composable
 fun DropdownSelector(
