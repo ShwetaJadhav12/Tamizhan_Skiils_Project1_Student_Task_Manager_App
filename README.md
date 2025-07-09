@@ -3,17 +3,11 @@ An Android app built using Jetpack Compose that helps students stay organized an
 
 ✨ Features
 ✅ Add, Edit & Delete Tasks
-
 🎯 Task Priority: High / Medium / Low
-
 📅 Due Dates: Stay on schedule
-
 🗂️ Task Categories: Academic or Personal or others
-
 📊 Task Filter: Filter by scategory
-
 💾 Offline Storage: Built-in Room database
-
 📱 Modern UI using Material Design 3 + Jetpack Compose
 
 🧱 Tech Stack
