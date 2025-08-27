@@ -388,10 +388,6 @@ fun AddTaskDialog(
                 }
 
                 Spacer(Modifier.height(12.dp))
-                DatePickerWithButton(
-                    selectedDate = dueDate,
-                    onDatePicked = { dueDate = it }
-                )
 
                 Spacer(Modifier.height(12.dp))
                 Row(

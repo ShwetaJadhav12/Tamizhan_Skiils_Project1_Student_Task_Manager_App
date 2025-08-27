@@ -33,7 +33,9 @@
 
         <!-- ✅ Add your BroadcastReceiver here -->
         <receiver android:name=".reminder.ReminderReceiver"
-            tools:ignore="MissingClass" />
+            tools:ignore="MissingClass"
+            android:enabled="true"
+            android:exported="true"/>
 
     </application>
 

@@ -117,10 +117,7 @@ fun AddEditTaskScreen(
             DropdownSelector("Category", categories, category) { category = it }
 
             Spacer(modifier = Modifier.height(12.dp))
-            DatePickerWithButton(
-                selectedDate = dueDate,
-                onDatePicked = { dueDate = it }
-            )
+
         }
     }
 }
